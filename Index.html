@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Procédure – Remise en service d’un poste de détente</title>
+  <style>
+    :root {
+      --bg:#0b0c10; --card:#111318; --ink:#e9eef3; --muted:#b9c3cd;
+      --accent:#4aa3ff; --ok:#2ecc71; --warn:#ffb020; --danger:#ff5c5c;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background:linear-gradient(180deg, #0b0c10 0%, #12141c 100%); color:var(--ink);
+    }
+    header{
+      padding:24px 16px 8px; text-align:center;
+    }
+    h1{margin:0 0 6px;font-size: clamp(1.1rem, 3vw, 1.6rem);}
+    .subtitle{color:var(--muted); font-size:.95rem}
+    .wrap{max-width:950px; margin:18px auto; padding:0 14px 40px}
+    .toolbar{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:10px 0 16px;
+    }
+    .controls{display:flex; gap:8px; flex-wrap:wrap}
+    button{
+      background:#1a1f29; color:var(--ink); border:1px solid #262d3a; padding:10px 14px; border-radius:10px;
+      cursor:pointer; transition:.15s transform ease, .15s background ease;
+    }
+    button:hover{background:#222a38; transform:translateY(-1px)}
+    .progress{
+      width:100%; background:#1a1f29; border:1px solid #262d3a; border-radius:12px; height:14px; overflow:hidden;
+    }
+    .bar{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), #7ed2ff); transition: width .25s ease}
+    .count{font-variant-numeric: tabular-nums; color:var(--muted); margin-top:6px; text-align:right}
+    .card{
+      background:var(--card); border:1px solid #1c2230; border-radius:16px; padding:14px; margin:10px 0;
+    }
+    .step{
+      display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:10px;
+      border-radius:12px; transition: background .15s ease, border-color .15s ease;
+      border:1px dashed #2a3243;
+    }
+    .step.locked{opacity:.55}
+    .step.done{background:#0f141d; border-color:#2f6ed1}
+    .step .title{font-weight:600}
+    .meta{font-size:.85rem; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap}
+    .note{margin-top:8px; display:none}
+    .note textarea{
+      width:100%; min-height:60px; resize:vertical; background:#0f141d; color:var(--ink);
+      border:1px solid #2a3243; border-radius:10px; padding:8px 10px;
+    }
+    .substeps{margin-top:8px; padding-left:28px}
+    .substeps li{margin:6px 0}
+    .badge{
+      font-size:.75rem; padding:2px 8px; border-radius:999px; border:1px solid #2a3243; color:var(--muted)
+    }
+    .badges{display:flex; gap:6px; flex-wrap:wrap}
+    .actions{display:flex; gap:6px; flex-wrap:wrap}
+    .tiny{font-size:.8rem; padding:6px 8px}
+    .danger{border-color:#3b2230; background:#231318}
+    /* Checkbox styling */
+    input[type="checkbox"]{
+      width:22px; height:22px; margin-top:2px; accent-color:#4aa3ff; cursor:pointer;
+    }
+    .muted{color:var(--muted)}
+    @media print{
+      .toolbar, .actions, .toggle-note, .tiny{display:none !important}
+      body{background:white; color:black}
+      .card{border-color:#ddd}
+      .step{background:white; border-color:#ddd}
+      input[type="checkbox"]{transform: scale(1.2)}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Procédure de remise en service d’un poste de détente</h1>
+    <div class="subtitle">Checklist séquentielle — cochez chaque étape dans l’ordre. L’état est enregistré sur votre appareil.</div>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar card">
+      <div class="controls">
+        <button id="btn-print" title="Imprimer ou PDF (Ctrl/Cmd+P)">Imprimer / PDF</button>
+        <button id="btn-expand">Tout déplier</button>
+        <button id="btn-collapse">Tout replier</button>
+      </div>
+      <div class="controls">
+        <button id="btn-reset" class="danger">Réinitialiser</button>
+      </div>
+      <div style="flex-basis:100%"></div>
+      <div class="progress"><div id="progressBar" class="bar"></div></div>
+      <div id="progressCount" class="count">0 / 0 terminé</div>
+    </div>
+
+    <div id="steps"></div>
+
+    <div class="card muted" style="margin-top:16px">
+      <strong>Rappels fin de procédure</strong>
+      <ul style="margin-top:6px">
+        <li>Les essais d’installation permettent de contrôler si, lors du démarrage et de l’arrêt, on n’est pas trop proche du déclenchement de la VS (indiqué sur la plaque de consigne) et le bon fonctionnement du régulateur.</li>
+        <li>Prévenir le BEX si anomalie constatée sur le poste.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // --- Données de procédure (depuis la photo) ---
+    const STEPS = [
+      {
+        title:"État des lieux en présence du client si poste PDL",
+        sub:[
+          "Type de poste",
+          "Position de la VS",
+          "Position des robinets R2, R3, robinets impulsion VS et régulateur",
+          "Contrôle des pressions"
+        ]
+      },
+      { title:"Pose d’un manomètre adapté à la pression" },
+      { title:"Passer en impulsion courte, ouverture IC puis fermeture IL" },
+      { title:"Fermeture R3 en regardant le manomètre" },
+      { title:"Contrôle étanchéité VS" },
+      { title:"Si régulateur piloté : dévisser pilote de 3 tours (plaque de consigne GRDF)" },
+      { title:"Bipasse VS en regardant le manomètre" },
+      { title:"Contrôle étanchéité régulateur" },
+      { title:"Continuer bipasse VS jusqu’à l’équilibrage des pressions de chaque côté du clapet VS" },
+      { title:"Réarmement VS puis fermeture du bypass" },
+      { title:"Ouverture R3 (lentement)" },
+      { title:"Passer en impulsions longues, ouverture IL puis fermeture IC" },
+      { title:"Si régulateur piloté : visser pilote de 3 tours (plaque de consigne GRDF)" },
+      { title:"V.E.A" },
+      { title:"Essais avec le client et ajuster la pression de consigne (vérification rotation compteur)" }
+    ];
+
+    const elSteps = document.getElementById('steps');
+    const STORAGE_KEY = 'checklist_poste_detente_v1';
+
+    function loadState(){
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+      catch(e){ return {}; }
+    }
+    function saveState(state){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    const state = loadState();
+
+    function render(){
+      elSteps.innerHTML = '';
+      STEPS.forEach((s, i) => {
+        const done = !!state[i]?.done;
+        const ts = state[i]?.ts || null;
+        const note = state[i]?.note || '';
+        const locked = i>0 && !state[i-1]?.done;
+
+        const card = document.createElement('div');
+        card.className = 'card step ' + (done ? 'done ' : '') + (locked ? 'locked' : '');
+        card.dataset.index = i;
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = done; cb.disabled = locked;
+        cb.addEventListener('change', () => {
+          state[i] = state[i] || {};
+          state[i].done = cb.checked;
+          state[i].ts = cb.checked ? new Date().toISOString() : null;
+          saveState(state); render();
+        });
+
+        const content = document.createElement('div');
+
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = (i+1) + '. ' + s.title;
+        content.appendChild(title);
+
+        // substeps
+        if(s.sub && s.sub.length){
+          const sub = document.createElement('ul');
+          sub.className = 'substeps';
+          s.sub.forEach(t => {
+            const li = document.createElement('li'); li.textContent = t; sub.appendChild(li);
+          });
+          content.appendChild(sub);
+        }
+
+        // badges + actions
+        const meta = document.createElement('div'); meta.className = 'meta';
+        const badges = document.createElement('div'); badges.className = 'badges';
+        const badgeOrder = document.createElement('span'); badgeOrder.className='badge'; badgeOrder.textContent = 'Étape ' + (i+1) + '/' + STEPS.length;
+        badges.appendChild(badgeOrder);
+        if(ts){
+          const dt = new Date(ts);
+          const badgeTs = document.createElement('span'); badgeTs.className='badge';
+          badgeTs.textContent = 'Validée à ' + dt.toLocaleString();
+          badges.appendChild(badgeTs);
+        }
+        meta.appendChild(badges);
+
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const toggleNote = document.createElement('button'); toggleNote.className='tiny toggle-note'; toggleNote.textContent = 'Ajouter/voir une note';
+        actions.appendChild(toggleNote);
+        meta.appendChild(actions);
+        content.appendChild(meta);
+
+        // note area
+        const noteWrap = document.createElement('div'); noteWrap.className = 'note';
+        const ta = document.createElement('textarea'); ta.placeholder = 'Votre note pour cette étape…';
+        ta.value = note || '';
+        ta.addEventListener('input', () => {
+          state[i] = state[i] || {};
+          state[i].note = ta.value; saveState(state);
+        });
+        noteWrap.appendChild(ta);
+        content.appendChild(noteWrap);
+
+        toggleNote.addEventListener('click', () => {
+          noteWrap.style.display = noteWrap.style.display === 'block' ? 'none' : 'block';
+        });
+
+        card.appendChild(cb);
+        card.appendChild(content);
+        elSteps.appendChild(card);
+      });
+
+      updateProgress();
+      lockEnforcement();
+    }
+
+    function lockEnforcement(){
+      // assure le verrouillage visuel et logique
+      [...document.querySelectorAll('.step')].forEach((el, i) => {
+        const cb = el.querySelector('input[type="checkbox"]');
+        const locked = i>0 && !state[i-1]?.done;
+        el.classList.toggle('locked', locked);
+        cb.disabled = locked;
+      });
+    }
+
+    function updateProgress(){
+      const total = STEPS.length;
+      const done = Object.values(state).filter(s => s?.done).length;
+      document.getElementById('progressBar').style.width = (done/total*100) + '%';
+      document.getElementById('progressCount').textContent = `${done} / ${total} terminé${done>1?'s':''}`;
+      document.title = `(${done}/${total}) Procédure – Poste de détente`;
+    }
+
+    // Toolbar actions
+    document.getElementById('btn-print').addEventListener('click', () => window.print());
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if(confirm('Tout réinitialiser ?')){ localStorage.removeItem(STORAGE_KEY); location.reload(); }
+    });
+    document.getElementById('btn-expand').addEventListener('click', () => {
+      document.querySelectorAll('.note').forEach(n => n.style.display='block');
+    });
+    document.getElementById('btn-collapse').addEventListener('click', () => {
+      document.querySelectorAll('.note').forEach(n => n.style.display='none');
+    });
+
+    render();
+  </script>
+</body>
+</html>
